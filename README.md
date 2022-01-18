@@ -35,4 +35,5 @@ generator jsonSchema {
 
 ## Related Plugins / Repos / Topics
 
+npm package: https://www.npmjs.com/package/eslint-plugin-prisma-nestjs-graphql
 prisma-nestjs-graphql resource generator: LINK
