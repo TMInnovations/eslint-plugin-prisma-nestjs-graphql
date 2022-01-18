@@ -1,7 +1,7 @@
 {
   "name": "eslint-plugin-prisma-nestjs-graphql-helper",
-  "version": "1.0.0",
-  "description": "",
+  "version": "0.0.1",
+  "description": "eslint plugin for prisma & nestjs & graphql setups to not forget resolvers etc.",
   "main": "./dist/index.js",
   "files": [
     "dist/**"
