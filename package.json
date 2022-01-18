@@ -1,0 +1,31 @@
+{
+  "name": "eslint-plugin-prisma-nestjs-graphql-helper",
+  "version": "1.0.0",
+  "description": "",
+  "main": "./dist/index.js",
+  "files": [
+    "dist/**"
+  ],
+  "scripts": {
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@prisma/sdk": "^3.6.0",
+    "@types/eslint": "^8.2.1",
+    "@types/jest": "^26.0.15",
+    "@types/node": "^16.11.11",
+    "@typescript-eslint/eslint-plugin": "^5.6.0",
+    "@typescript-eslint/parser": "^5.6.0",
+    "@typescript-eslint/typescript-estree": "^5.6.0",
+    "fs": "^0.0.1-security",
+    "node": "^17.2.0",
+    "rimraf": "^3.0.2",
+    "typescript": "^4.6.0-dev.20211206"
+  },
+  "dependencies": {
+    "camelcase": "^6.3.0"
+  }
+}
