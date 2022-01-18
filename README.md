@@ -1,4 +1,4 @@
-# eslint-plugin-prisma-nestjs-graphql-helper
+# eslint-plugin-prisma-nestjs-graphql
 
 ## Goal of the plugin (p):
 
