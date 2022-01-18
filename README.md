@@ -30,6 +30,8 @@ generator jsonSchema {
 
 - Imports are added automatically (and naively) => if an import in a resolver file already exists before linting and the same one gets added by the linter => it will exist twice => error
   - Just delete the second (generated) import.
+- Paths are inflexible
+  - Will hopefully be adressed in the future
 
 ## Related Plugins / Repos / Topics
 
