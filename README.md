@@ -25,8 +25,6 @@ generator jsonSchema {
 ...
 ```
 
-- Your resolver files should reside in a folder
-
 ## Known issues
 
 - Imports are added automatically (and naively) => if an import in a resolver file already exists before linting and the same one gets added by the linter => it will exist twice => error
