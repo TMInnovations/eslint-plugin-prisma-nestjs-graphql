@@ -42,7 +42,15 @@ interface Entity {
   }[];
 }
 
-const scalars = ['string', 'float', 'integer', 'object', 'enum', 'boolean', 'number'];
+const scalars = [
+  'string',
+  'float',
+  'integer',
+  'object',
+  'enum',
+  'boolean',
+  'number',
+];
 
 const prismaEntities: PrismaEntity[] = Object.entries(entities.definitions).map(
   e => ({
@@ -76,6 +84,10 @@ const prismaEntities: PrismaEntity[] = Object.entries(entities.definitions).map(
       .filter(f => !scalars.find(s => s === f.type)),
   }),
 );
+
+const args = (name: string, type: string) => {
+  return `@Args({ name: '${name}', nullable: true }) ${name}: ${type}OrderByInput,`;
+};
 
 module.exports = {
   rules: {
@@ -156,11 +168,19 @@ module.exports = {
                   
                   `,
                 fix: function (fixer) {
+                  const imports = openResolvers.map(r =>
+                    r.type.replace('[', '').replace(']', ''),
+                  );
+                  const multiImports = openResolvers
+                    .filter(i => -1 !== i.type.search('['))
+                    .map(r => r.type.replace('[', '').replace(']', ''));
                   const importFix = fixer.insertTextBefore(
                     decorator as unknown as Node,
-                    `import {${openResolvers
-                      .map(r => r.type.replace('[', '').replace(']', ''))
-                      .join(', ')}} from '@prisma/client/nestjs-graphql'
+                    `import {
+                      ${imports.join(', ')}, 
+                      ${multiImports.map(i => i + 'WhereInput').join(', ')}, 
+                      ${multiImports.map(i => i + 'OrderByInput').join(', ')}, 
+                    } from '@prisma/client/nestjs-graphql'
 `,
                   );
 
@@ -172,14 +192,22 @@ module.exports = {
 
                         return `
   @ResolveField(() => ${r.type}, {
-    name: '${r.name}', ${isToManyRelation ? '' : '\n    nullable: true,'} 
+    name: '${r.name}', 
+    ${isToManyRelation ? '' : '\n    nullable: true,'}
   })
-  ${r.name}(@Parent() ${camelcase(decoratorName)}: ${decoratorName}) {
+  ${r.name}(@Parent() ${camelcase(decoratorName)}: ${decoratorName}, ${
+                          isToManyRelation
+                            ? args('where', r.type) +
+                              ', \n' +
+                              args('orderBy', r.type)
+                            : ''
+                        }
+  ) {
     return this.${camelcase(decoratorName)}Service
       .findOne({
         id: ${camelcase(decoratorName)}.id,
       })
-      .${r.name}();
+      .${r.name}({ where });
   }
   `;
                       })
