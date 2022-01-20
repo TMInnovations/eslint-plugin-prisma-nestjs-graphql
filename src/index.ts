@@ -172,7 +172,7 @@ module.exports = {
                     r.type.replace('[', '').replace(']', ''),
                   );
                   const multiImports = openResolvers
-                    .filter(i => -1 !== i.type.search('['))
+                    .filter(i => -1 !== i.type.indexOf('['))
                     .map(r => r.type.replace('[', '').replace(']', ''));
                   const importFix = fixer.insertTextBefore(
                     decorator as unknown as Node,
