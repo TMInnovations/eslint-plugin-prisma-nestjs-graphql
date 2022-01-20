@@ -85,8 +85,10 @@ const prismaEntities: PrismaEntity[] = Object.entries(entities.definitions).map(
   }),
 );
 
-const args = (name: string, type: string) => {
-  return `@Args({ name: '${name}', nullable: true }) ${name}: ${type}OrderByInput,`;
+const args = (name, type) => {
+  return `@Args({ nullable: true }) ${name}: FindMany${type
+    .replace('[', '')
+    .replace(']', '')}Args`;
 };
 
 module.exports = {
@@ -178,8 +180,9 @@ module.exports = {
                     decorator as unknown as Node,
                     `import {
                       ${imports.join(', ')}, 
-                      ${multiImports.map(i => i + 'WhereInput').join(', ')}, 
-                      ${multiImports.map(i => i + 'OrderByInput').join(', ')}, 
+                      ${multiImports
+                        .map(i => 'FindMany' + i + 'Args, ')
+                        .join('')}
                     } from '@prisma/client/nestjs-graphql'
 `,
                   );
@@ -192,24 +195,18 @@ module.exports = {
 
                         return `
   @ResolveField(() => ${r.type}, {
-    name: '${r.name}', 
-    ${isToManyRelation ? '' : '\n    nullable: true,'}
+    name: '${r.name}',${isToManyRelation ? '' : '\n    nullable: true, \n'}
   })
   ${r.name}(@Parent() ${camelcase(decoratorName)}: ${decoratorName}, ${
-                          isToManyRelation
-                            ? args('where', r.type) +
-                              ', \n' +
-                              args('orderBy', r.type)
-                            : ''
-                        }
-  ) {
+                          isToManyRelation ? args('args', r.type) + ', ' : ''
+                        }) {
     return this.${camelcase(decoratorName)}Service
       .findOne({
         id: ${camelcase(decoratorName)}.id,
       })
-      .${r.name}({ where });
+      .${r.name}(${isToManyRelation ? 'args' : ''});
   }
-  `;
+`;
                       })
                       .join('');
 
