@@ -194,8 +194,10 @@ module.exports = {
 
                   const newImports = [...entityImports, ...findManyImports];
 
-                  const missingImports = newImports.filter(
-                    ni => !existingImports.includes(ni),
+                  const missingImports = Array.from(
+                    new Set(
+                      newImports.filter(ni => !existingImports.includes(ni)),
+                    ),
                   );
 
                   const importFixer = fixer.insertTextAfter(

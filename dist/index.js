@@ -112,7 +112,7 @@ module.exports = {
                                         .map(r => r.type.replace('[', '').replace(']', ''))
                                         .map(i => 'FindMany' + i + 'Args');
                                     const newImports = [...entityImports, ...findManyImports];
-                                    const missingImports = newImports.filter(ni => !existingImports.includes(ni));
+                                    const missingImports = Array.from(new Set(newImports.filter(ni => !existingImports.includes(ni))));
                                     const importFixer = fixer.insertTextAfter(importNode.specifiers.pop(), missingImports.map(i => '\n,' + i).join(''));
                                     const txt = `\n\n\n  // FIELDRESOLVERS \n` +
                                         openResolvers
