@@ -100,17 +100,20 @@ module.exports = {
                   
                   `,
                                 fix: function (fixer) {
-                                    const imports = openResolvers.map(r => r.type.replace('[', '').replace(']', ''));
-                                    const multiImports = openResolvers
+                                    const importNode = context
+                                        .getSourceCode()
+                                        .ast.body.find(i => i.type === 'ImportDeclaration' &&
+                                        i.source.value.split('/').pop() ===
+                                            'nestjs-graphql');
+                                    const existingImports = importNode.specifiers.map(i => i.imported.name);
+                                    const entityImports = openResolvers.map(r => r.type.replace('[', '').replace(']', ''));
+                                    const findManyImports = openResolvers
                                         .filter(i => -1 !== i.type.indexOf('['))
-                                        .map(r => r.type.replace('[', '').replace(']', ''));
-                                    const importFix = fixer.insertTextBefore(decorator, `import {
-                      ${imports.join(', ')}, 
-                      ${multiImports
-                                        .map(i => 'FindMany' + i + 'Args, ')
-                                        .join('')}
-                    } from '@prisma/client/nestjs-graphql'
-`);
+                                        .map(r => r.type.replace('[', '').replace(']', ''))
+                                        .map(i => 'FindMany' + i + 'Args');
+                                    const newImports = [...entityImports, ...findManyImports];
+                                    const missingImports = newImports.filter(ni => !existingImports.includes(ni));
+                                    const importFixer = fixer.insertTextAfter(importNode.specifiers.pop(), missingImports.map(i => '\n,' + i).join(''));
                                     const txt = `\n\n\n  // FIELDRESOLVERS \n` +
                                         openResolvers
                                             .map(r => {
@@ -130,7 +133,7 @@ module.exports = {
                                         })
                                             .join('');
                                     const resolverFix = fixer.insertTextAfter(classNode.body.body.find(b => b.key.name === 'constructor'), txt);
-                                    return [importFix, resolverFix];
+                                    return [importFixer, resolverFix];
                                 },
                             });
                         }

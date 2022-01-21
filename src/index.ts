@@ -1,6 +1,6 @@
 import camelcase from 'camelcase';
 import { Rule } from 'eslint';
-import { ClassDeclaration, MethodDefinition, Node } from 'estree';
+import { ClassDeclaration, ImportDeclaration, ImportSpecifier, MethodDefinition } from 'estree';
 import { readFileSync } from 'fs';
 
 const entities: Entity = JSON.parse(
@@ -170,21 +170,37 @@ module.exports = {
                   
                   `,
                 fix: function (fixer) {
-                  const imports = openResolvers.map(r =>
+                  const importNode = context
+                    .getSourceCode()
+                    .ast.body.find(
+                      i =>
+                        i.type === 'ImportDeclaration' &&
+                        (i.source.value as string).split('/').pop() ===
+                          'nestjs-graphql',
+                    ) as ImportDeclaration;
+
+                  const existingImports = (
+                    importNode.specifiers as ImportSpecifier[]
+                  ).map(i => i.imported.name);
+
+                  const entityImports = openResolvers.map(r =>
                     r.type.replace('[', '').replace(']', ''),
                   );
-                  const multiImports = openResolvers
+
+                  const findManyImports = openResolvers
                     .filter(i => -1 !== i.type.indexOf('['))
-                    .map(r => r.type.replace('[', '').replace(']', ''));
-                  const importFix = fixer.insertTextBefore(
-                    decorator as unknown as Node,
-                    `import {
-                      ${imports.join(', ')}, 
-                      ${multiImports
-                        .map(i => 'FindMany' + i + 'Args, ')
-                        .join('')}
-                    } from '@prisma/client/nestjs-graphql'
-`,
+                    .map(r => r.type.replace('[', '').replace(']', ''))
+                    .map(i => 'FindMany' + i + 'Args');
+
+                  const newImports = [...entityImports, ...findManyImports];
+
+                  const missingImports = newImports.filter(
+                    ni => !existingImports.includes(ni),
+                  );
+
+                  const importFixer = fixer.insertTextAfter(
+                    importNode.specifiers.pop(),
+                    missingImports.map(i => '\n,' + i).join(''),
                   );
 
                   const txt =
@@ -215,7 +231,7 @@ module.exports = {
                     classNode.body.body.find(b => b.key.name === 'constructor'),
                     txt,
                   );
-                  return [importFix, resolverFix];
+                  return [importFixer, resolverFix];
                 },
               });
             }
