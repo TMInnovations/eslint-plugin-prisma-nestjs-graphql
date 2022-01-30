@@ -1,6 +1,11 @@
 import camelcase from 'camelcase';
 import { Rule } from 'eslint';
-import { ClassDeclaration, ImportDeclaration, ImportSpecifier, MethodDefinition } from 'estree';
+import {
+  ClassDeclaration,
+  ImportDeclaration,
+  ImportSpecifier,
+  MethodDefinition,
+} from 'estree';
 import { readFileSync } from 'fs';
 
 const entities: Entity = JSON.parse(
@@ -37,6 +42,7 @@ interface Entity {
         type: string | string[];
         anyOf: ({ $ref: string } | { type: string })[];
         items: { $ref: string }[];
+        enum: string[];
       };
     };
   }[];
@@ -50,6 +56,7 @@ const scalars = [
   'enum',
   'boolean',
   'number',
+  '[enum]',
 ];
 
 const prismaEntities: PrismaEntity[] = Object.entries(entities.definitions).map(
@@ -58,7 +65,9 @@ const prismaEntities: PrismaEntity[] = Object.entries(entities.definitions).map(
     fields: Object.entries(e[1].properties)
       .map(e => {
         let t = null;
-        if (e[1].type) {
+        if (!!e[1].enum) {
+          t = '[enum]';
+        } else if (e[1].type) {
           if (Array.isArray(e[1].type)) {
             // check if it is an array :-O => more than one types possible
             t = e[1].type.find(typ => typ !== 'null');

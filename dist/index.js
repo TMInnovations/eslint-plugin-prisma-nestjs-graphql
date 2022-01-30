@@ -14,13 +14,17 @@ const scalars = [
     'enum',
     'boolean',
     'number',
+    '[enum]',
 ];
 const prismaEntities = Object.entries(entities.definitions).map(e => ({
     name: e[0],
     fields: Object.entries(e[1].properties)
         .map(e => {
         let t = null;
-        if (e[1].type) {
+        if (!!e[1].enum) {
+            t = '[enum]';
+        }
+        else if (e[1].type) {
             if (Array.isArray(e[1].type)) {
                 t = e[1].type.find(typ => typ !== 'null');
             }
