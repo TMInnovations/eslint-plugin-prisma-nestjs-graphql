@@ -57,7 +57,11 @@ const scalars = [
   'boolean',
   'number',
   '[enum]',
+  '[String]',
 ];
+
+const firstLetterUpperCase = (str: string) =>
+  str.charAt(0).toUpperCase() + str.slice(1);
 
 const prismaEntities: PrismaEntity[] = Object.entries(entities.definitions).map(
   e => ({
@@ -73,7 +77,11 @@ const prismaEntities: PrismaEntity[] = Object.entries(entities.definitions).map(
             t = e[1].type.find(typ => typ !== 'null');
           } else {
             if (e[1].type === 'array') {
-              t = '[' + e[1].items['$ref'].split('/').pop() + ']';
+              if (e[1].items['$ref']) {
+                t = '[' + e[1].items['$ref'].split('/').pop() + ']';
+              } else {
+                t = '[' + firstLetterUpperCase(e[1].items['type']) + ']';
+              }
             } else {
               t = e[1].type;
             }
