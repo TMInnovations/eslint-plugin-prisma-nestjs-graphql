@@ -1,0 +1,7 @@
+{
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "always"
+  },
+  "typescript.preferences.importModuleSpecifier": "relative",
+  "material-icon-theme.hidesExplorerArrows": true
+}

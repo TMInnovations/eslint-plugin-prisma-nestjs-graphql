@@ -1,4 +1,5 @@
-import camelcase from 'camelcase';
+import { camelize } from '@angular-devkit/core/src/utils/strings';
+import { DMMF } from '@prisma/generator-helper';
 import { Rule } from 'eslint';
 import {
   ClassDeclaration,
@@ -8,8 +9,8 @@ import {
 } from 'estree';
 import { readFileSync } from 'fs';
 
-const entities: Entity = JSON.parse(
-  readFileSync(`prisma/generated/json-schema.json`, 'utf-8'),
+const dmmf: DMMF.Document = JSON.parse(
+  readFileSync(`prisma/generated/dmmf.json`, 'utf-8'),
 );
 
 type DM<T> = T &
@@ -27,85 +28,16 @@ type DM<T> = T &
     key: { name: string };
   };
 
-interface PrismaEntity {
-  name: string;
-  fields: {
-    name: string;
-    type: string;
-  }[];
-}
-
-interface Entity {
-  definitions: {
-    [entityName: string]: {
-      properties: {
-        type: string | string[];
-        anyOf: ({ $ref: string } | { type: string })[];
-        items: { $ref: string }[];
-        enum: string[];
-      };
-    };
-  }[];
-}
-
-const scalars = [
-  'string',
-  'float',
-  'integer',
-  'object',
-  'enum',
-  'boolean',
-  'number',
-  '[enum]',
-  '[String]',
-];
-
-const firstLetterUpperCase = (str: string) =>
-  str.charAt(0).toUpperCase() + str.slice(1);
-
-const prismaEntities: PrismaEntity[] = Object.entries(entities.definitions).map(
-  e => ({
-    name: e[0],
-    fields: Object.entries(e[1].properties)
-      .map(e => {
-        let t = null;
-        if (!!e[1].enum) {
-          t = '[enum]';
-        } else if (e[1].type) {
-          if (Array.isArray(e[1].type)) {
-            // check if it is an array :-O => more than one types possible
-            t = e[1].type.find(typ => typ !== 'null');
-          } else {
-            if (e[1].type === 'array') {
-              if (e[1].items['$ref']) {
-                t = '[' + e[1].items['$ref'].split('/').pop() + ']';
-              } else {
-                t = '[' + firstLetterUpperCase(e[1].items['type']) + ']';
-              }
-            } else {
-              t = e[1].type;
-            }
-          }
-        }
-        if (e[1].anyOf) {
-          t = e[1].anyOf
-            .find(of => !!of['$ref'])
-            ['$ref'].split('/')
-            .pop();
-        }
-        if (e[1]['$ref']) {
-          t = e[1]['$ref'].split('/').pop();
-        }
-        return { name: e[0], type: t };
-      })
-      .filter(f => !scalars.find(s => s === f.type)),
-  }),
-);
+const prismaEntities = dmmf.datamodel.models.map(m => {
+  return {
+    name: m.name,
+    idFieldName: m.fields.find(f => f.isId)?.name,
+    fields: m.fields.filter(f => !['scalar', 'enum'].includes(f.kind)),
+  };
+});
 
 const args = (name, type) => {
-  return `@Args({ nullable: true }) ${name}: FindMany${type
-    .replace('[', '')
-    .replace(']', '')}Args`;
+  return `@Args({ nullable: true }) ${name}: FindMany${type}ArgsWithSoftDelete`;
 };
 
 module.exports = {
@@ -126,14 +58,16 @@ module.exports = {
 
             // If there is no decorator => notify and quit Class inspection
             if (!decorator) {
-              console.info(`No Resolver in class: ${node.id.name}`);
+              // console.info(`No Resolver in class: ${node.id.name}`);
               return;
             }
 
             // Look for the decorator's name
-            const decoratorName = decorator.expression.arguments.find(
-              a => a.type === 'ArrowFunctionExpression',
-            )?.body.name;
+            // @ts-ignore
+            const decoratorName = decorator.parent.id.name.replace(
+              'Resolver',
+              '',
+            );
 
             // If there is no decoratorName => notify and quit Class inspection
             if (!decoratorName) {
@@ -181,7 +115,7 @@ module.exports = {
 
             if (openResolvers.length >= 1) {
               context.report({
-                node: node,
+                node: node.id,
                 message: `${context.getCwd()}${context.getFilename()}: Following Resolvers are not implemented atm: 
                   ${openResolvers.map(or => or.name).join(', ')} 
                   
@@ -200,16 +134,9 @@ module.exports = {
                     importNode.specifiers as ImportSpecifier[]
                   ).map(i => i.imported.name);
 
-                  const entityImports = openResolvers.map(r =>
-                    r.type.replace('[', '').replace(']', ''),
-                  );
+                  const entityImports = openResolvers.map(r => r.type);
 
-                  const findManyImports = openResolvers
-                    .filter(i => -1 !== i.type.indexOf('['))
-                    .map(r => r.type.replace('[', '').replace(']', ''))
-                    .map(i => 'FindMany' + i + 'Args');
-
-                  const newImports = [...entityImports, ...findManyImports];
+                  const newImports = entityImports;
 
                   const missingImports = Array.from(
                     new Set(
@@ -219,25 +146,95 @@ module.exports = {
 
                   const importFixer = fixer.insertTextAfter(
                     importNode.specifiers.pop(),
-                    missingImports.map(i => '\n,' + i).join(''),
+                    missingImports.map(i => ',\n    ' + i).join(''),
+                  );
+
+                  // create a new import statement for related reltation resolvers
+
+                  const importNodeNestjsGraphql = context
+                    .getSourceCode()
+                    .ast.body.find(
+                      i =>
+                        i.type === 'ImportDeclaration' &&
+                        (i.source.value as string) === '@nestjs/graphql',
+                    ) as ImportDeclaration;
+
+                  const findManyImportsFixer = fixer.insertTextAfter(
+                    importNodeNestjsGraphql,
+                    '\n\n// FindMany[Entity]ArgsWithSoftDelete' +
+                      openResolvers
+                        // check if already imported
+                        .filter(r => r.isList)
+                        .filter(r => {
+                          const importName =
+                            'FindMany' + r.type + 'ArgsWithSoftDelete';
+                          const imported = (
+                            context
+                              .getSourceCode()
+                              .ast.body.filter(
+                                i => i.type === 'ImportDeclaration',
+                              ) as ImportDeclaration[]
+                          ).find(i => {
+                            return (i.specifiers as ImportSpecifier[]).find(
+                              s => s.imported.name === importName,
+                            );
+                          });
+                          return !imported;
+                        })
+                        .map(
+                          r =>
+                            '\nimport { FindMany' +
+                            r.type +
+                            "ArgsWithSoftDelete } from '../" +
+                            camelize(r.type) +
+                            '/' +
+                            camelize(r.type) +
+                            ".resolver';",
+                        )
+                        .join('') +
+                      '\n',
+                  );
+
+                  const existingImportsNestjsGraphql = (
+                    importNodeNestjsGraphql.specifiers as ImportSpecifier[]
+                  ).map(i => i.imported.name);
+
+                  const newImportsNestjsGraphql = ['ResolveField', 'Parent'];
+
+                  const missingImportsNestjsGraphql = Array.from(
+                    new Set(
+                      newImportsNestjsGraphql.filter(
+                        ni => !existingImportsNestjsGraphql.includes(ni),
+                      ),
+                    ),
+                  );
+
+                  const importFixerNestjsGraphql = fixer.insertTextAfter(
+                    importNodeNestjsGraphql.specifiers.pop(),
+                    missingImportsNestjsGraphql
+                      .map(i => ',\n    ' + i)
+                      .join(''),
                   );
 
                   const txt =
                     `\n\n\n  // FIELDRESOLVERS \n` +
                     openResolvers
                       .map(r => {
-                        const isToManyRelation = r.type[0] === '[';
+                        const isToManyRelation = r.isList;
 
                         return `
-  @ResolveField(() => ${r.type}, {
-    name: '${r.name}',${isToManyRelation ? '' : '\n    nullable: true, \n'}
+  @CheckPermissions()
+  @ResolveField(() => ${isToManyRelation ? '[' + r.type + ']' : r.type}, {
+    name: '${r.name}',${isToManyRelation ? '' : '\n    nullable: true'}
   })
-  ${r.name}(@Parent() ${camelcase(decoratorName)}: ${decoratorName}, ${
+  ${r.name}(@Parent() entity: Entity, ${
                           isToManyRelation ? args('args', r.type) + ', ' : ''
-                        }) {
-    return this.${camelcase(decoratorName)}Service
-      .findOne({
-        id: ${camelcase(decoratorName)}.id,
+                        }): Promise<${
+                          isToManyRelation ? r.type + '[]' : r.type
+                        }> {
+    return this.service
+      .findUnique({
+        ${prismaEntity.idFieldName}: entity.${prismaEntity.idFieldName},
       })
       .${r.name}(${isToManyRelation ? 'args' : ''});
   }
@@ -250,13 +247,18 @@ module.exports = {
                     classNode.body.body.find(b => b.key.name === 'constructor'),
                     txt,
                   );
-                  return [importFixer, resolverFix];
+                  return [
+                    importFixer,
+                    importFixerNestjsGraphql,
+                    resolverFix,
+                    findManyImportsFixer,
+                  ];
                 },
               });
             }
           },
         };
       },
-    } as Rule.RuleModule,
+    },
   },
 };
